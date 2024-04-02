@@ -1,0 +1,184 @@
+apiVersion: v1
+data:
+  config.yaml: |
+    ##
+    # This config is for prometheus-webhook-dingtalk instead of Kubernetes!
+    ##
+
+    ## Request timeout
+    # timeout: 5s
+
+    ## Customizable templates path
+    templates:
+      - /config/template.tmpl
+
+    ## You can also override default template using `default_message`
+    ## The following example to use the 'legacy' template from v0.3.0
+    # default_message:
+    #   title: '{{ template "legacy.title" . }}'
+    #   text: '{{ template "legacy.content" . }}'
+    targets:
+      webhook1:
+        url: https://oapi.dingtalk.com/robot/send?access_token=e724689feb129767aa8f64e962b5bf08ba72c1259897e576a7620fe713a156c3
+        # secret for signature
+        secret: SEC9c1b94ea9d86c28e3b6456cf63bc65e0f2d7767130d249e0f2ed804ef086aea3
+      webhook2:
+        url: https://oapi.dingtalk.com/robot/send?access_token=xxxxxxxxxxxx
+      webhook_legacy:
+        url: https://oapi.dingtalk.com/robot/send?access_token=xxxxxxxxxxxx
+        # Customize template content
+        message:
+          # Use legacy template
+          title: '{{ template "legacy.title" . }}'
+          text: '{{ template "legacy.content" . }}'
+      webhook_mention_all:
+        url: https://oapi.dingtalk.com/robot/send?access_token=xxxxxxxxxxxx
+        mention:
+          all: true
+      webhook_mention_users:
+        url: https://oapi.dingtalk.com/robot/send?access_token=xxxxxxxxxxxx
+        mention:
+          mobiles: ['156xxxx8827', '189xxxx8325']
+  template.tmpl: |-
+    {{ define "__subject" }}[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.SortedPairs.Values | join " " }} {{ if gt (len .CommonLabels) (len .GroupLabels) }}({{ with .CommonLabels.Remove .GroupLabels.Names }}{{ .Values | join " " }}{{ end }}){{ end }}{{ end }}
+    {{ define "__alertmanagerURL" }}{{ .ExternalURL }}/#/alerts?receiver={{ .Receiver }}{{ end }}
+
+    {{ define "__text_alert_list" }}{{ range . }}
+    **Labels**
+    {{ range .Labels.SortedPairs }}> - {{ .Name }}: {{ .Value | html }}
+    {{ end }}
+    **Annotations**
+    {{ range .Annotations.SortedPairs }}> - {{ .Name }}: {{ .Value | html }}
+    {{ end }}
+    **Source:** [{{ .GeneratorURL }}]({{ .GeneratorURL }})
+    {{ end }}{{ end }}
+
+    {{ define "default.__text_alert_list" }}{{ range . }}
+    ---
+    **告警级别:** {{ .Labels.severity }}
+
+    **运营团队:** {{ .Labels.team }}
+
+    **触发时间:** {{ (.StartsAt.Add 28800e9).Format "2006-01-02 15:04:05" }}
+
+    **事件信息:**
+    {{ range .Annotations.SortedPairs }}> - {{ .Name }}: {{ .Value | html }}
+
+
+    {{ end }}
+
+    **事件标签:**
+    {{ range .Labels.SortedPairs }}{{ if and (ne (.Name) "severity") (ne (.Name) "summary") (ne (.Name) "team") }}> - {{ .Name }}: {{ .Value | html }}
+    {{ end }}{{ end }}
+    {{ end }}
+    {{ end }}
+    {{ define "default.__text_alertresovle_list" }}{{ range . }}
+    ---
+    **告警级别:** {{ .Labels.severity }}
+
+    **运营团队:** {{ .Labels.team }}
+
+    **触发时间:** {{ (.StartsAt.Add 28800e9).Format "2006-01-02 15:04:05" }}
+
+    **结束时间:** {{ (.EndsAt.Add 28800e9).Format "2006-01-02 15:04:05" }}
+
+    **事件信息:**
+    {{ range .Annotations.SortedPairs }}> - {{ .Name }}: {{ .Value | html }}
+
+
+    {{ end }}
+
+    **事件标签:**
+    {{ range .Labels.SortedPairs }}{{ if and (ne (.Name) "severity") (ne (.Name) "summary") (ne (.Name) "team") }}> - {{ .Name }}: {{ .Value | html }}
+    {{ end }}{{ end }}
+    {{ end }}
+    {{ end }}
+
+    {{/* Default */}}
+    {{ define "default.title" }}{{ template "__subject" . }}{{ end }}
+    {{ define "default.content" }}#### \[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}\] **[{{ index .GroupLabels "alertname" }}]({{ template "__alertmanagerURL" . }})**
+    {{ if gt (len .Alerts.Firing) 0 -}}
+
+    ![warningpicture](http://sgl326.bvimg.com/21365/2c37e085fdbb4111.jpg)
+
+    ### ====香港集群侦测到故障====
+    {{ template "default.__text_alert_list" .Alerts.Firing }}
+
+
+    {{- end }}
+
+    {{ if gt (len .Alerts.Resolved) 0 -}}
+    {{ template "default.__text_alertresovle_list" .Alerts.Resolved }}
+
+
+    {{- end }}
+    {{- end }}
+
+    {{/* Legacy */}}
+    {{ define "legacy.title" }}{{ template "__subject" . }}{{ end }}
+    {{ define "legacy.content" }}#### \[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}\] **[{{ index .GroupLabels "alertname" }}]({{ template "__alertmanagerURL" . }})**
+    {{ template "__text_alert_list" .Alerts.Firing }}
+    {{- end }}
+
+    {{/* Following names for compatibility */}}
+    {{ define "ding.link.title" }}{{ template "default.title" . }}{{ end }}
+    {{ define "ding.link.content" }}{{ template "default.content" . }}{{ end }}
+kind: ConfigMap
+metadata:
+  labels:
+    app: alertmanager-webhook-dingtalk
+  name: alertmanager-webhook-dingtalk-dgdkfddfdt
+  namespace: metrics
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: alertmanager-webhook-dingtalk
+  name: alertmanager-webhook-dingtalk
+  namespace: metrics
+spec:
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
+  selector:
+    app: alertmanager-webhook-dingtalk
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: alertmanager-webhook-dingtalk
+  name: alertmanager-webhook-dingtalk
+  namespace: metrics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alertmanager-webhook-dingtalk
+  template:
+    metadata:
+      labels:
+        app: alertmanager-webhook-dingtalk
+    spec:
+      containers:
+      - args:
+        - --web.listen-address=:8060
+        - --config.file=/config/config.yaml
+        image: timonwong/prometheus-webhook-dingtalk:v1.4.0
+        name: alertmanager-webhook-dingtalk
+        ports:
+        - containerPort: 8060
+          name: http
+        resources:
+          limits:
+            cpu: 100m
+            memory: 100Mi
+        volumeMounts:
+        - mountPath: /config
+          name: config
+      volumes:
+      - configMap:
+          name: alertmanager-webhook-dingtalk-dgdkfddfdt
+        name: config

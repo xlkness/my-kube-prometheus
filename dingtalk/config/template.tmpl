@@ -1,0 +1,83 @@
+{{ define "__subject" }}[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.SortedPairs.Values | join " " }} {{ if gt (len .CommonLabels) (len .GroupLabels) }}({{ with .CommonLabels.Remove .GroupLabels.Names }}{{ .Values | join " " }}{{ end }}){{ end }}{{ end }}
+{{ define "__alertmanagerURL" }}{{ .ExternalURL }}/#/alerts?receiver={{ .Receiver }}{{ end }}
+
+{{ define "__text_alert_list" }}{{ range . }}
+**Labels**
+{{ range .Labels.SortedPairs }}> - {{ .Name }}: {{ .Value | html }}
+{{ end }}
+**Annotations**
+{{ range .Annotations.SortedPairs }}> - {{ .Name }}: {{ .Value | html }}
+{{ end }}
+**Source:** [{{ .GeneratorURL }}]({{ .GeneratorURL }})
+{{ end }}{{ end }}
+
+{{ define "default.__text_alert_list" }}{{ range . }}
+---
+**告警级别:** {{ .Labels.severity }}
+
+**运营团队:** {{ .Labels.team }}
+
+**触发时间:** {{ (.StartsAt.Add 28800e9).Format "2006-01-02 15:04:05" }}
+
+**事件信息:**
+{{ range .Annotations.SortedPairs }}> - {{ .Name }}: {{ .Value | html }}
+
+
+{{ end }}
+
+**事件标签:**
+{{ range .Labels.SortedPairs }}{{ if and (ne (.Name) "severity") (ne (.Name) "summary") (ne (.Name) "team") }}> - {{ .Name }}: {{ .Value | html }}
+{{ end }}{{ end }}
+{{ end }}
+{{ end }}
+{{ define "default.__text_alertresovle_list" }}{{ range . }}
+---
+**告警级别:** {{ .Labels.severity }}
+
+**运营团队:** {{ .Labels.team }}
+
+**触发时间:** {{ (.StartsAt.Add 28800e9).Format "2006-01-02 15:04:05" }}
+
+**结束时间:** {{ (.EndsAt.Add 28800e9).Format "2006-01-02 15:04:05" }}
+
+**事件信息:**
+{{ range .Annotations.SortedPairs }}> - {{ .Name }}: {{ .Value | html }}
+
+
+{{ end }}
+
+**事件标签:**
+{{ range .Labels.SortedPairs }}{{ if and (ne (.Name) "severity") (ne (.Name) "summary") (ne (.Name) "team") }}> - {{ .Name }}: {{ .Value | html }}
+{{ end }}{{ end }}
+{{ end }}
+{{ end }}
+
+{{/* Default */}}
+{{ define "default.title" }}{{ template "__subject" . }}{{ end }}
+{{ define "default.content" }}#### \[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}\] **[{{ index .GroupLabels "alertname" }}]({{ template "__alertmanagerURL" . }})**
+{{ if gt (len .Alerts.Firing) 0 -}}
+
+![warningpicture](http://sgl326.bvimg.com/21365/2c37e085fdbb4111.jpg)
+
+### ====香港集群侦测到故障====
+{{ template "default.__text_alert_list" .Alerts.Firing }}
+
+
+{{- end }}
+
+{{ if gt (len .Alerts.Resolved) 0 -}}
+{{ template "default.__text_alertresovle_list" .Alerts.Resolved }}
+
+
+{{- end }}
+{{- end }}
+
+{{/* Legacy */}}
+{{ define "legacy.title" }}{{ template "__subject" . }}{{ end }}
+{{ define "legacy.content" }}#### \[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}\] **[{{ index .GroupLabels "alertname" }}]({{ template "__alertmanagerURL" . }})**
+{{ template "__text_alert_list" .Alerts.Firing }}
+{{- end }}
+
+{{/* Following names for compatibility */}}
+{{ define "ding.link.title" }}{{ template "default.title" . }}{{ end }}
+{{ define "ding.link.content" }}{{ template "default.content" . }}{{ end }}
